@@ -1,29 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from flask import Flask, render_template_string, jsonify, request, make_response
-from datetime import datetime
+from flask import Flask, render_template_string, jsonify, abort, send_from_directory
 import hashlib
+import time
 import random
-import string
 
 app = Flask(__name__)
-app.config.update(
-    SECRET_KEY='evo_s2_2024_prod',
-    MAX_CONTENT_LENGTH=16 * 1024 * 1024
-)
 
-MAIN_PAGE = """
+EVOLUTION_SITE = """
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Evolution — Standoff 2 PC Client</title>
-    <meta name="description" content="Официальный клиент Standoff 2 для Windows. Профессиональная оптимизация.">
+    <title>Evolution</title>
+    <meta name="robots" content="index, follow">
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @font-face {
+            font-family: 'Graphik';
+            src: url('data:font/woff2;base64,') format('woff2');
+            font-weight: 400;
+            font-display: swap;
+        }
+        
+        :root {
+            --bg: #000;
+            --text: #fff;
+            --dim: #666;
+            --border: #222;
+            --accent: #fff;
+        }
         
         * {
             margin: 0;
@@ -31,167 +39,210 @@ MAIN_PAGE = """
             box-sizing: border-box;
         }
         
-        body {
-            font-family: 'Inter', -apple-system, system-ui, sans-serif;
-            background: #0a0a0a;
-            color: #e4e4e7;
+        html {
             font-size: 16px;
-            line-height: 1.5;
+            -webkit-text-size-adjust: 100%;
+        }
+        
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font: 400 1rem/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
             -webkit-font-smoothing: antialiased;
-            overflow-x: hidden;
+            -moz-osx-font-smoothing: grayscale;
         }
         
-        .wrapper {
-            max-width: 1280px;
+        .c {
+            width: min(1200px, 100%);
             margin: 0 auto;
-            padding: 0 24px;
+            padding: 0 20px;
         }
         
-        /* Header */
-        header {
+        /* Nav */
+        .nav {
             position: fixed;
-            width: 100%;
             top: 0;
-            background: rgba(10, 10, 10, 0.8);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            z-index: 50;
-            height: 72px;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
         }
         
-        nav {
+        .nav-in {
             height: 100%;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
         
-        .brand {
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            color: #fff;
+        .nav-logo {
+            font-weight: 600;
+            font-size: 18px;
             text-decoration: none;
+            color: var(--text);
         }
         
-        .menu {
+        .nav-menu {
             display: flex;
+            gap: 30px;
             list-style: none;
-            gap: 40px;
         }
         
-        .menu a {
-            color: #a1a1aa;
+        .nav-menu a {
+            color: var(--dim);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.15s;
+        }
+        
+        .nav-menu a:hover {
+            color: var(--text);
+        }
+        
+        .nav-cta {
+            background: var(--text);
+            color: var(--bg);
+            padding: 8px 18px;
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
-            transition: color 0.2s;
+            border-radius: 4px;
+            transition: opacity 0.15s;
         }
         
-        .menu a:hover {
-            color: #fff;
+        .nav-cta:hover {
+            opacity: 0.9;
         }
         
-        .telegram-link {
-            background: #2563eb;
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 600;
-            transition: background 0.2s;
-        }
-        
-        .telegram-link:hover {
-            background: #1d4ed8;
-        }
-        
-        /* Main */
-        main {
-            margin-top: 72px;
-        }
-        
-        .intro {
-            padding: 120px 0;
-            text-align: center;
-        }
-        
-        .tag {
-            display: inline-block;
-            background: rgba(34, 197, 94, 0.1);
-            color: #22c55e;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 24px;
-        }
-        
-        h1 {
-            font-size: 64px;
-            font-weight: 800;
-            letter-spacing: -2px;
-            line-height: 1.1;
-            margin-bottom: 24px;
-            color: #fff;
-        }
-        
-        .subtitle {
-            font-size: 20px;
-            color: #71717a;
-            margin-bottom: 48px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        
-        .actions {
+        /* Hero */
+        .hero {
+            min-height: 100vh;
             display: flex;
-            gap: 16px;
-            justify-content: center;
+            align-items: center;
+            padding: 100px 0 60px;
         }
         
-        .download-btn {
-            background: #fff;
-            color: #000;
-            padding: 16px 32px;
-            border-radius: 8px;
-            text-decoration: none;
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+        
+        .hero-left h1 {
+            font-size: clamp(40px, 8vw, 72px);
             font-weight: 600;
-            font-size: 16px;
+            line-height: 1;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+        }
+        
+        .hero-left p {
+            font-size: 18px;
+            color: var(--dim);
+            margin-bottom: 30px;
+            max-width: 480px;
+        }
+        
+        .hero-btns {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 500;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: all 0.15s;
+            cursor: pointer;
+            border: none;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            transition: transform 0.2s, box-shadow 0.2s;
         }
         
-        .download-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 20px 40px rgba(255, 255, 255, 0.1);
+        .btn-white {
+            background: var(--text);
+            color: var(--bg);
         }
         
-        .learn-btn {
+        .btn-white:hover {
+            opacity: 0.9;
+        }
+        
+        .btn-outline {
             background: transparent;
-            color: #fff;
-            padding: 16px 32px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.2s;
+            color: var(--text);
+            border: 1px solid var(--border);
         }
         
-        .learn-btn:hover {
-            background: rgba(255, 255, 255, 0.05);
-            border-color: rgba(255, 255, 255, 0.4);
+        .btn-outline:hover {
+            background: var(--border);
+        }
+        
+        .hero-right {
+            position: relative;
+            height: 500px;
+            background: #050505;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .window {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .window-bar {
+            height: 40px;
+            background: #0a0a0a;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            gap: 8px;
+        }
+        
+        .window-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--border);
+        }
+        
+        .window-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .game-preview {
+            width: 80%;
+            height: 80%;
+            background: linear-gradient(45deg, #111, #1a1a1a);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            color: #333;
         }
         
         /* Stats */
-        .numbers {
+        .stats {
             padding: 80px 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid var(--border);
         }
         
         .stats-grid {
@@ -200,294 +251,271 @@ MAIN_PAGE = """
             gap: 40px;
         }
         
-        .stat {
-            text-align: center;
+        .stat h3 {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 5px;
         }
         
-        .stat-num {
-            font-size: 48px;
-            font-weight: 800;
-            color: #fff;
-            letter-spacing: -1px;
-        }
-        
-        .stat-text {
-            color: #71717a;
-            margin-top: 8px;
+        .stat p {
+            color: var(--dim);
+            font-size: 14px;
         }
         
         /* Features */
         .features {
-            padding: 120px 0;
+            padding: 80px 0;
         }
         
-        .features-header {
-            max-width: 640px;
-            margin-bottom: 80px;
-        }
-        
-        .features-header h2 {
+        .features h2 {
             font-size: 48px;
-            font-weight: 800;
-            letter-spacing: -1.5px;
-            margin-bottom: 16px;
-            color: #fff;
+            font-weight: 600;
+            margin-bottom: 60px;
+            letter-spacing: -1px;
         }
         
-        .features-header p {
-            font-size: 18px;
-            color: #71717a;
-        }
-        
-        .features-list {
+        .features-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 32px;
-        }
-        
-        .feature {
-            background: #111111;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 32px;
-            transition: all 0.3s;
-        }
-        
-        .feature:hover {
-            background: #161616;
-            border-color: rgba(255, 255, 255, 0.2);
-            transform: translateY(-4px);
-        }
-        
-        .feature-icon {
-            width: 48px;
-            height: 48px;
-            background: rgba(99, 102, 241, 0.1);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 60px;
         }
         
         .feature h3 {
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            color: #fff;
+            font-size: 24px;
+            margin-bottom: 15px;
         }
         
         .feature p {
-            color: #71717a;
+            color: var(--dim);
+            margin-bottom: 20px;
             line-height: 1.6;
         }
         
-        /* Showcase */
-        .showcase {
-            padding: 120px 0;
-            background: #050505;
-        }
-        
-        .showcase-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 80px;
-            align-items: center;
-        }
-        
-        .showcase-text h2 {
-            font-size: 40px;
-            font-weight: 800;
-            letter-spacing: -1px;
-            margin-bottom: 24px;
-            color: #fff;
-        }
-        
-        .showcase-text p {
-            font-size: 18px;
-            color: #71717a;
-            margin-bottom: 32px;
-            line-height: 1.6;
-        }
-        
-        .specs {
+        .feature-specs {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 10px;
         }
         
         .spec {
             display: flex;
             align-items: center;
-            gap: 12px;
-            color: #a1a1aa;
-        }
-        
-        .spec-check {
-            color: #22c55e;
-            font-size: 20px;
-        }
-        
-        .showcase-visual {
-            background: #111111;
-            border-radius: 16px;
-            height: 400px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .visual-content {
-            text-align: center;
-            z-index: 1;
-        }
-        
-        .visual-bg {
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at center, rgba(99, 102, 241, 0.1), transparent);
-        }
-        
-        /* Download */
-        .download-section {
-            padding: 120px 0;
-            text-align: center;
-        }
-        
-        .download-card {
-            max-width: 640px;
-            margin: 0 auto;
-            background: #111111;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 48px;
-        }
-        
-        .version-badge {
-            display: inline-block;
-            background: rgba(99, 102, 241, 0.1);
-            color: #6366f1;
-            padding: 8px 16px;
-            border-radius: 8px;
+            gap: 10px;
+            color: var(--dim);
             font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 24px;
         }
         
-        .download-card h2 {
-            font-size: 32px;
-            font-weight: 800;
-            margin-bottom: 16px;
-            color: #fff;
+        .spec::before {
+            content: '→';
+            color: var(--text);
         }
         
-        .download-card p {
-            color: #71717a;
-            margin-bottom: 32px;
-        }
-        
-        .download-meta {
-            display: flex;
-            justify-content: center;
-            gap: 48px;
-            margin-bottom: 32px;
-        }
-        
-        .meta-item {
-            text-align: center;
-        }
-        
-        .meta-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: #fff;
-        }
-        
-        .meta-label {
-            color: #71717a;
-            font-size: 14px;
-            margin-top: 4px;
-        }
-        
-        /* Requirements */
-        .requirements {
-            padding: 120px 0;
+        /* Tech */
+        .tech {
+            padding: 80px 0;
             background: #050505;
         }
         
-        .req-grid {
+        .tech h2 {
+            font-size: 36px;
+            margin-bottom: 40px;
+        }
+        
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+        }
+        
+        .tech-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 30px;
+            border-radius: 4px;
+        }
+        
+        .tech-card h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .tech-card p {
+            color: var(--dim);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        /* Download */
+        .download {
+            padding: 120px 0;
+            text-align: center;
+        }
+        
+        .download h2 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+        
+        .download-subtitle {
+            color: var(--dim);
+            font-size: 18px;
+            margin-bottom: 40px;
+        }
+        
+        .download-box {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 40px;
+            background: #050505;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        
+        .version {
+            display: inline-block;
+            padding: 4px 12px;
+            background: var(--border);
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+        
+        .download-info {
+            display: flex;
+            justify-content: space-around;
+            margin: 30px 0;
+            padding: 20px 0;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .download-info-item {
+            text-align: center;
+        }
+        
+        .download-info-item strong {
+            display: block;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .download-info-item span {
+            color: var(--dim);
+            font-size: 12px;
+        }
+        
+        .download-btn {
+            width: 100%;
+            padding: 15px;
+            background: var(--text);
+            color: var(--bg);
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        
+        .download-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .download-note {
+            margin-top: 20px;
+            color: var(--dim);
+            font-size: 12px;
+        }
+        
+        /* Specs */
+        .specs {
+            padding: 80px 0;
+            background: #050505;
+        }
+        
+        .specs h2 {
+            font-size: 36px;
+            margin-bottom: 40px;
+        }
+        
+        .specs-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 32px;
-            margin-top: 48px;
+            gap: 40px;
         }
         
-        .req-card {
-            background: #111111;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 32px;
+        .specs-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 30px;
+            border-radius: 4px;
         }
         
-        .req-card h3 {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 24px;
-            color: #fff;
+        .specs-card h3 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
         }
         
-        .req-list {
-            list-style: none;
-        }
-        
-        .req-list li {
+        .spec-row {
             display: flex;
             justify-content: space-between;
             padding: 12px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            color: #a1a1aa;
+            border-bottom: 1px solid #111;
         }
         
-        .req-list li:last-child {
+        .spec-row:last-child {
             border: none;
         }
         
-        .req-list strong {
-            color: #fff;
+        .spec-label {
+            color: var(--dim);
+            font-size: 14px;
+        }
+        
+        .spec-value {
+            font-size: 14px;
+            font-weight: 500;
         }
         
         /* FAQ */
         .faq {
-            padding: 120px 0;
+            padding: 80px 0;
+        }
+        
+        .faq h2 {
+            font-size: 36px;
+            margin-bottom: 40px;
         }
         
         .faq-list {
-            max-width: 768px;
-            margin: 48px auto 0;
+            max-width: 700px;
         }
         
         .faq-item {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 24px 0;
+            border-bottom: 1px solid var(--border);
+            padding: 20px 0;
         }
         
         .faq-q {
-            font-size: 18px;
-            font-weight: 600;
-            color: #fff;
-            margin-bottom: 12px;
+            font-size: 16px;
+            font-weight: 500;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         
+        .faq-q:hover {
+            color: var(--dim);
+        }
+        
         .faq-a {
-            color: #71717a;
+            margin-top: 15px;
+            color: var(--dim);
             line-height: 1.6;
             display: none;
         }
@@ -497,43 +525,32 @@ MAIN_PAGE = """
         }
         
         .faq-arrow {
+            font-size: 20px;
             transition: transform 0.2s;
         }
         
         .faq-item.open .faq-arrow {
-            transform: rotate(180deg);
+            transform: rotate(45deg);
         }
         
         /* Footer */
         footer {
-            padding: 80px 0 40px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 60px 0 30px;
+            border-top: 1px solid var(--border);
         }
         
-        .footer-top {
+        .footer-grid {
             display: grid;
             grid-template-columns: 2fr 1fr 1fr 1fr;
-            gap: 48px;
-            margin-bottom: 48px;
+            gap: 40px;
+            margin-bottom: 40px;
         }
         
-        .footer-brand {
-            font-size: 20px;
-            font-weight: 700;
-            color: #fff;
-            margin-bottom: 16px;
-        }
-        
-        .footer-desc {
-            color: #71717a;
-            line-height: 1.6;
-        }
-        
-        .footer-col h4 {
+        .footer-col h3 {
             font-size: 14px;
-            font-weight: 600;
-            color: #fff;
-            margin-bottom: 16px;
+            margin-bottom: 15px;
+            color: var(--dim);
+            font-weight: 400;
         }
         
         .footer-links {
@@ -541,486 +558,493 @@ MAIN_PAGE = """
         }
         
         .footer-links li {
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         
         .footer-links a {
-            color: #71717a;
+            color: var(--text);
             text-decoration: none;
             font-size: 14px;
-            transition: color 0.2s;
+            transition: color 0.15s;
         }
         
         .footer-links a:hover {
-            color: #fff;
+            color: var(--dim);
         }
         
         .footer-bottom {
-            padding-top: 32px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 30px;
+            border-top: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         
-        .copyright {
-            color: #52525b;
-            font-size: 14px;
+        .copy {
+            color: var(--dim);
+            font-size: 13px;
         }
         
-        .legal-links {
+        .legal {
             display: flex;
-            gap: 24px;
+            gap: 20px;
         }
         
-        .legal-links a {
-            color: #52525b;
+        .legal a {
+            color: var(--dim);
             text-decoration: none;
-            font-size: 14px;
-            transition: color 0.2s;
+            font-size: 13px;
+            transition: color 0.15s;
         }
         
-        .legal-links a:hover {
-            color: #a1a1aa;
+        .legal a:hover {
+            color: var(--text);
         }
         
         /* Mobile */
-        .mobile-toggle {
-            display: none;
-            background: transparent;
-            border: none;
-            color: #fff;
-            font-size: 24px;
-            cursor: pointer;
-        }
-        
         @media (max-width: 768px) {
-            .menu {
+            .nav-menu {
                 display: none;
             }
             
-            .mobile-toggle {
-                display: block;
+            .hero-grid {
+                grid-template-columns: 1fr;
+                gap: 40px;
             }
             
-            h1 {
-                font-size: 40px;
+            .hero-left h1 {
+                font-size: 48px;
             }
             
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
             
-            .features-list {
+            .features-grid {
                 grid-template-columns: 1fr;
             }
             
-            .showcase-content {
+            .tech-grid {
                 grid-template-columns: 1fr;
             }
             
-            .req-grid {
+            .specs-grid {
                 grid-template-columns: 1fr;
             }
             
-            .footer-top {
+            .footer-grid {
                 grid-template-columns: 1fr;
-                gap: 32px;
+                gap: 30px;
             }
             
             .footer-bottom {
                 flex-direction: column;
-                gap: 16px;
+                gap: 20px;
             }
+        }
+        
+        /* Utils */
+        .mono {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #0a0;
+            color: #000;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         /* Animations */
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
+            from { 
+                opacity: 0; 
+                transform: translateY(10px);
             }
-            to {
+            to { 
                 opacity: 1;
                 transform: translateY(0);
             }
         }
         
-        .animate {
-            animation: fadeIn 0.6s ease-out;
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #333;
         }
     </style>
 </head>
 <body>
-    <header>
-        <nav class="wrapper">
-            <a href="/" class="brand">Evolution</a>
+    <nav class="nav">
+        <div class="c nav-in">
+            <a href="/" class="nav-logo">evolution</a>
             
-            <ul class="menu">
-                <li><a href="#features">Возможности</a></li>
-                <li><a href="#download">Загрузка</a></li>
-                <li><a href="#requirements">Требования</a></li>
-                <li><a href="#faq">Вопросы</a></li>
+            <ul class="nav-menu">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#download">Download</a></li>
+                <li><a href="#specs">Specs</a></li>
+                <li><a href="#faq">FAQ</a></li>
             </ul>
             
-            <a href="https://t.me/metaspace_tg" class="telegram-link" target="_blank">
-                Telegram
-            </a>
-            
-            <button class="mobile-toggle">☰</button>
-        </nav>
-    </header>
+            <a href="https://t.me/metaspace_tg" class="nav-cta" target="_blank">Telegram</a>
+        </div>
+    </nav>
     
-    <main>
-        <section class="intro">
-            <div class="wrapper">
-                <span class="tag">Версия 4.2.1 доступна</span>
-                
-                <h1>Standoff 2<br>на вашем ПК</h1>
-                
-                <p class="subtitle">
-                    Профессиональный клиент для Windows с оптимизацией производительности 
-                    и расширенными настройками управления
-                </p>
-                
-                <div class="actions">
-                    <a href="#download" class="download-btn">
-                        <span>↓</span>
-                        Скачать для Windows
-                    </a>
-                    <a href="#features" class="learn-btn">
-                        Подробнее
-                    </a>
-                </div>
-            </div>
-        </section>
-        
-        <section class="numbers">
-            <div class="wrapper">
-                <div class="stats-grid">
-                    <div class="stat">
-                        <div class="stat-num">3M+</div>
-                        <div class="stat-text">Установок</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-num">144</div>
-                        <div class="stat-text">FPS макс</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-num">99.9%</div>
-                        <div class="stat-text">Аптайм</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-num">24/7</div>
-                        <div class="stat-text">Поддержка</div>
+    <section class="hero">
+        <div class="c">
+            <div class="hero-grid">
+                <div class="hero-left fade-in">
+                    <h1>Play Standoff 2<br>on Windows</h1>
+                    <p>Professional gaming platform with hardware acceleration and advanced input control</p>
+                    
+                    <div class="hero-btns">
+                        <a href="#download" class="btn btn-white">
+                            Download v4.3
+                        </a>
+                        <button class="btn btn-outline">
+                            Watch demo
+                        </button>
                     </div>
                 </div>
-            </div>
-        </section>
-        
-        <section class="features" id="features">
-            <div class="wrapper">
-                <div class="features-header">
-                    <h2>Всё необходимое для победы</h2>
-                    <p>Инструменты и возможности, которые дают преимущество в игре</p>
-                </div>
                 
-                <div class="features-list">
-                    <div class="feature">
-                        <div class="feature-icon">⚡</div>
-                        <h3>Производительность</h3>
-                        <p>Оптимизация под любое железо. Стабильный FPS и минимальные задержки.</p>
-                    </div>
-                    
-                    <div class="feature">
-                        <div class="feature-icon">🎮</div>
-                        <h3>Управление</h3>
-                        <p>Полная настройка клавиатуры и мыши. Создание собственных схем.</p>
-                    </div>
-                    
-                    <div class="feature">
-                        <div class="feature-icon">🖥️</div>
-                        <h3>Мультиоконность</h3>
-                        <p>Запуск нескольких копий игры для управления разными аккаунтами.</p>
-                    </div>
-                    
-                    <div class="feature">
-                        <div class="feature-icon">📹</div>
-                        <h3>Запись</h3>
-                        <p>Встроенная запись видео и скриншотов без потери производительности.</p>
-                    </div>
-                    
-                    <div class="feature">
-                        <div class="feature-icon">🔧</div>
-                        <h3>Настройки</h3>
-                        <p>Расширенные графические настройки и оптимизация под ваш ПК.</p>
-                    </div>
-                    
-                    <div class="feature">
-                        <div class="feature-icon">🛡️</div>
-                        <h3>Безопасность</h3>
-                        <p>Никаких модификаций игры. Полная безопасность аккаунта.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-        
-        <section class="showcase">
-            <div class="wrapper">
-                <div class="showcase-content">
-                    <div class="showcase-text">
-                        <h2>Играйте на максимальных настройках</h2>
-                        <p>
-                            Evolution автоматически оптимизирует игру под ваше железо, 
-                            обеспечивая лучшее соотношение качества графики и производительности.
-                        </p>
-                        
-                        <div class="specs">
-                            <div class="spec">
-                                <span class="spec-check">✓</span>
-                                <span>Поддержка 4K разрешения</span>
-                            </div>
-                            <div class="spec">
-                                <span class="spec-check">✓</span>
-                                <span>144Hz мониторы</span>
-                            </div>
-                            <div class="spec">
-                                <span class="spec-check">✓</span>
-                                <span>HDR совместимость</span>
-                            </div>
-                            <div class="spec">
-                                <span class="spec-check">✓</span>
-                                <span>Минимальный input lag</span>
+                <div class="hero-right fade-in">
+                    <div class="window">
+                        <div class="window-bar">
+                            <div class="window-dot"></div>
+                            <div class="window-dot"></div>
+                            <div class="window-dot"></div>
+                        </div>
+                        <div class="window-content">
+                            <div class="game-preview">
+                                SO2
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="showcase-visual">
-                        <div class="visual-bg"></div>
-                        <div class="visual-content">
-                            <div style="font-size: 64px;">🎯</div>
-                            <p style="margin-top: 16px; color: #71717a;">Демо интерфейса</p>
-                        </div>
-                    </div>
                 </div>
             </div>
-        </section>
-        
-        <section class="download-section" id="download">
-            <div class="wrapper">
-                <div class="download-card">
-                    <span class="version-badge">Stable Release</span>
-                    
-                    <h2>Скачать Evolution</h2>
-                    <p>Последняя стабильная версия для Windows</p>
-                    
-                    <div class="download-meta">
-                        <div class="meta-item">
-                            <div class="meta-value">612 MB</div>
-                            <div class="meta-label">Размер</div>
-                        </div>
-                        <div class="meta-item">
-                            <div class="meta-value">4.2.1</div>
-                            <div class="meta-label">Версия</div>
-                        </div>
-                        <div class="meta-item">
-                            <div class="meta-value">Win 7+</div>
-                            <div class="meta-label">Система</div>
-                        </div>
-                    </div>
-                    
-                    <a href="/get-download" class="download-btn">
-                        <span>↓</span>
-                        Загрузить установщик
-                    </a>
+        </div>
+    </section>
+    
+    <section class="stats">
+        <div class="c">
+            <div class="stats-grid">
+                <div class="stat">
+                    <h3>3.2M</h3>
+                    <p>Active players</p>
+                </div>
+                <div class="stat">
+                    <h3>144</h3>
+                    <p>Max FPS</p>
+                </div>
+                <div class="stat">
+                    <h3>99.9%</h3>
+                    <p>Uptime</p>
+                </div>
+                <div class="stat">
+                    <h3>24/7</h3>
+                    <p>Support</p>
                 </div>
             </div>
-        </section>
-        
-        <section class="requirements" id="requirements">
-            <div class="wrapper">
-                <h2 style="font-size: 40px; font-weight: 800; color: #fff; margin-bottom: 16px;">
-                    Системные требования
-                </h2>
-                <p style="color: #71717a; font-size: 18px;">
-                    Проверьте совместимость вашего ПК
-                </p>
+        </div>
+    </section>
+    
+    <section class="features" id="features">
+        <div class="c">
+            <h2>Built for performance</h2>
+            
+            <div class="features-grid">
+                <div class="feature">
+                    <h3>Hardware Acceleration</h3>
+                    <p>Native GPU rendering with DirectX 12 support. Optimized shaders and texture streaming for maximum performance.</p>
+                    <div class="feature-specs">
+                        <div class="spec">4K resolution support</div>
+                        <div class="spec">144Hz display compatibility</div>
+                        <div class="spec">HDR rendering</div>
+                        <div class="spec">Variable refresh rate</div>
+                    </div>
+                </div>
                 
-                <div class="req-grid">
-                    <div class="req-card">
-                        <h3>Минимальные</h3>
-                        <ul class="req-list">
-                            <li>
-                                <span>ОС</span>
-                                <strong>Windows 7 SP1</strong>
-                            </li>
-                            <li>
-                                <span>Процессор</span>
-                                <strong>Intel i3 2.4GHz</strong>
-                            </li>
-                            <li>
-                                <span>Память</span>
-                                <strong>4 GB RAM</strong>
-                            </li>
-                            <li>
-                                <span>Видеокарта</span>
-                                <strong>Intel HD 4000</strong>
-                            </li>
-                            <li>
-                                <span>DirectX</span>
-                                <strong>Version 11</strong>
-                            </li>
-                            <li>
-                                <span>Место</span>
-                                <strong>8 GB HDD</strong>
-                            </li>
-                        </ul>
-                    </div>
-                    
-                    <div class="req-card">
-                        <h3>Рекомендуемые</h3>
-                        <ul class="req-list">
-                            <li>
-                                <span>ОС</span>
-                                <strong>Windows 10/11</strong>
-                            </li>
-                            <li>
-                                <span>Процессор</span>
-                                <strong>Intel i5 3.0GHz</strong>
-                            </li>
-                            <li>
-                                <span>Память</span>
-                                <strong>8 GB RAM</strong>
-                            </li>
-                            <li>
-                                <span>Видеокарта</span>
-                                <strong>GTX 1050 / RX 560</strong>
-                            </li>
-                            <li>
-                                <span>DirectX</span>
-                                <strong>Version 12</strong>
-                            </li>
-                            <li>
-                                <span>Место</span>
-                                <strong>16 GB SSD</strong>
-                            </li>
-                        </ul>
+                <div class="feature">
+                    <h3>Input Control</h3>
+                    <p>Professional-grade mouse and keyboard handling with customizable sensitivity curves and zero input lag.</p>
+                    <div class="feature-specs">
+                        <div class="spec">Raw input support</div>
+                        <div class="spec">Custom key bindings</div>
+                        <div class="spec">Macro recording</div>
+                        <div class="spec">Controller support</div>
                     </div>
                 </div>
-            </div>
-        </section>
-        
-        <section class="faq" id="faq">
-            <div class="wrapper">
-                <h2 style="font-size: 40px; font-weight: 800; color: #fff; margin-bottom: 16px; text-align: center;">
-                    Частые вопросы
-                </h2>
-                <p style="color: #71717a; font-size: 18px; text-align: center;">
-                    Ответы на популярные вопросы пользователей
-                </p>
                 
-                <div class="faq-list">
-                    <div class="faq-item">
-                        <div class="faq-q">
-                            Это бесплатно?
-                            <span class="faq-arrow">↓</span>
-                        </div>
-                        <div class="faq-a">
-                            Да, Evolution полностью бесплатен. Никаких скрытых платежей или подписок.
-                        </div>
+                <div class="feature">
+                    <h3>Network Optimization</h3>
+                    <p>Advanced networking stack with packet optimization and automatic server selection for minimal latency.</p>
+                    <div class="feature-specs">
+                        <div class="spec">TCP/UDP optimization</div>
+                        <div class="spec">Automatic QoS</div>
+                        <div class="spec">Server routing</div>
+                        <div class="spec">Ping compensation</div>
                     </div>
-                    
-                    <div class="faq-item">
-                        <div class="faq-q">
-                            Безопасно для аккаунта?
-                            <span class="faq-arrow">↓</span>
-                        </div>
-                        <div class="faq-a">
-                            Абсолютно безопасно. Мы не модифицируем игровые файлы и не используем читы.
-                        </div>
-                    </div>
-                    
-                    <div class="faq-item">
-                        <div class="faq-q">
-                            Какие режимы поддерживаются?
-                            <span class="faq-arrow">↓</span>
-                        </div>
-                        <div class="faq-a">
-                            Все официальные режимы игры, включая Competitive, Deathmatch, Arms Race и другие.
-                        </div>
-                    </div>
-                    
-                    <div class="faq-item">
-                        <div class="faq-q">
-                            Как обновляется клиент?
-                            <span class="faq-arrow">↓</span>
-                        </div>
-                        <div class="faq-a">
-                            Автоматически при запуске. Вы всегда будете использовать последнюю версию.
-                        </div>
-                    </div>
-                    
-                    <div class="faq-item">
-                        <div class="faq-q">
-                            Есть поддержка контроллеров?
-                            <span class="faq-arrow">↓</span>
-                        </div>
-                        <div class="faq-a">
-                            Да, поддерживаются Xbox, PlayStation и другие популярные контроллеры.
-                        </div>
+                </div>
+                
+                <div class="feature">
+                    <h3>Multi-Instance</h3>
+                    <p>Run multiple game instances simultaneously with independent configurations and account management.</p>
+                    <div class="feature-specs">
+                        <div class="spec">Up to 4 instances</div>
+                        <div class="spec">Synchronized control</div>
+                        <div class="spec">Resource management</div>
+                        <div class="spec">Profile switching</div>
                     </div>
                 </div>
             </div>
-        </section>
-    </main>
+        </div>
+    </section>
+    
+    <section class="tech">
+        <div class="c">
+            <h2>Technology stack</h2>
+            
+            <div class="tech-grid">
+                <div class="tech-card">
+                    <h3>Rendering Engine</h3>
+                    <p>Custom Vulkan/DirectX renderer with multi-threaded command buffer recording and GPU-driven culling.</p>
+                </div>
+                <div class="tech-card">
+                    <h3>Audio Pipeline</h3>
+                    <p>WASAPI exclusive mode with hardware acceleration. Spatial audio and HRTF processing.</p>
+                </div>
+                <div class="tech-card">
+                    <h3>Memory Management</h3>
+                    <p>Custom allocator with memory pooling and automatic garbage collection. Zero memory leaks.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <section class="download" id="download">
+        <div class="c">
+            <h2>Get Evolution</h2>
+            <p class="download-subtitle">Latest stable release for Windows</p>
+            
+            <div class="download-box">
+                <span class="version">VERSION 4.3.0</span>
+                
+                <div class="download-info">
+                    <div class="download-info-item">
+                        <strong>628</strong>
+                        <span>MB</span>
+                    </div>
+                    <div class="download-info-item">
+                        <strong>Win 7+</strong>
+                        <span>64-bit</span>
+                    </div>
+                    <div class="download-info-item">
+                        <strong>DirectX 11</strong>
+                        <span>Required</span>
+                    </div>
+                </div>
+                
+                <button class="download-btn">Download installer</button>
+                
+                <div class="download-note">
+                    SHA256: 7d865e89b5ef3c8f69f3a8c5e8df9c0b2a4e5f8a9c2d4e6f8a0b2c4d6
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <section class="specs" id="specs">
+        <div class="c">
+            <h2>System requirements</h2>
+            
+            <div class="specs-grid">
+                <div class="specs-card">
+                    <h3>Minimum</h3>
+                    <div class="spec-row">
+                        <span class="spec-label">OS</span>
+                        <span class="spec-value">Windows 7 SP1</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">CPU</span>
+                        <span class="spec-value">Intel i3 2.4GHz</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">RAM</span>
+                        <span class="spec-value">4 GB</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">GPU</span>
+                        <span class="spec-value">Intel HD 4000</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Storage</span>
+                        <span class="spec-value">8 GB HDD</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Network</span>
+                        <span class="spec-value">Broadband</span>
+                    </div>
+                </div>
+                
+                <div class="specs-card">
+                    <h3>Recommended</h3>
+                    <div class="spec-row">
+                        <span class="spec-label">OS</span>
+                        <span class="spec-value">Windows 10/11</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">CPU</span>
+                        <span class="spec-value">Intel i5 3.0GHz</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">RAM</span>
+                        <span class="spec-value">8 GB</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">GPU</span>
+                        <span class="spec-value">GTX 1050</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Storage</span>
+                        <span class="spec-value">16 GB SSD</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Network</span>
+                        <span class="spec-value">Fiber</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <section class="faq" id="faq">
+        <div class="c">
+            <h2>Frequently asked questions</h2>
+            
+            <div class="faq-list">
+                <div class="faq-item">
+                    <div class="faq-q">
+                        Is it free to use?
+                        <span class="faq-arrow">+</span>
+                    </div>
+                    <div class="faq-a">
+                        Yes, Evolution is completely free. No hidden fees, subscriptions or premium features.
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-q">
+                        Is my account safe?
+                        <span class="faq-arrow">+</span>
+                    </div>
+                    <div class="faq-a">
+                        Absolutely. We don't modify game files or use any cheats. Evolution is just an Android emulator optimized for gaming.
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-q">
+                        What game modes are supported?
+                        <span class="faq-arrow">+</span>
+                    </div>
+                    <div class="faq-a">
+                        All official game modes including Competitive, Deathmatch, Arms Race, Capture the Flag and special events.
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-q">
+                        How do updates work?
+                        <span class="faq-arrow">+</span>
+                    </div>
+                    <div class="faq-a">
+                        Evolution updates automatically when you launch it. Game updates are handled through the official game client.
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-q">
+                        Can I use a controller?
+                        <span class="faq-arrow">+</span>
+                    </div>
+                    <div class="faq-a">
+                        Yes, we support Xbox, PlayStation and most generic controllers with full button mapping.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
     
     <footer>
-        <div class="wrapper">
-            <div class="footer-top">
-                <div>
-                    <div class="footer-brand">Evolution</div>
-                    <p class="footer-desc">
-                        Профессиональный клиент Standoff 2 для Windows. 
-                        Максимальная производительность и удобство игры на ПК.
+        <div class="c">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <h3>ABOUT</h3>
+                    <p style="color: var(--dim); font-size: 14px; line-height: 1.6;">
+                        Evolution is a professional Windows client for Standoff 2. 
+                        Optimized for competitive gaming with minimal input lag and maximum performance.
                     </p>
                 </div>
                 
                 <div class="footer-col">
-                    <h4>Продукт</h4>
+                    <h3>PRODUCT</h3>
                     <ul class="footer-links">
-                        <li><a href="#features">Возможности</a></li>
-                        <li><a href="#download">Скачать</a></li>
-                        <li><a href="#requirements">Требования</a></li>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#download">Download</a></li>
+                        <li><a href="#specs">Requirements</a></li>
+                        <li><a href="#">Changelog</a></li>
                     </ul>
                 </div>
                 
                 <div class="footer-col">
-                    <h4>Поддержка</h4>
+                    <h3>SUPPORT</h3>
                     <ul class="footer-links">
-                        <li><a href="#">Инструкции</a></li>
+                        <li><a href="#">Documentation</a></li>
                         <li><a href="#faq">FAQ</a></li>
-                        <li><a href="#">Обновления</a></li>
+                        <li><a href="#">Troubleshooting</a></li>
+                        <li><a href="#">Contact</a></li>
                     </ul>
                 </div>
                 
                 <div class="footer-col">
-                    <h4>Сообщество</h4>
+                    <h3>COMMUNITY</h3>
                     <ul class="footer-links">
                         <li><a href="https://t.me/metaspace_tg" target="_blank">Telegram</a></li>
                         <li><a href="#">Discord</a></li>
+                        <li><a href="#">Reddit</a></li>
                         <li><a href="#">YouTube</a></li>
                     </ul>
                 </div>
             </div>
             
             <div class="footer-bottom">
-                <div class="copyright">
-                    © 2024 Evolution. Не аффилирован с Axlebolt.
-                </div>
-                <div class="legal-links">
-                    <a href="#">Конфиденциальность</a>
-                    <a href="#">Условия</a>
-                    <a href="#">Контакты</a>
+                <div class="copy">© 2024 Evolution. Not affiliated with Axlebolt.</div>
+                <div class="legal">
+                    <a href="#">Privacy</a>
+                    <a href="#">Terms</a>
+                    <a href="#">License</a>
                 </div>
             </div>
         </div>
@@ -1028,50 +1052,40 @@ MAIN_PAGE = """
     
     <script>
         // Smooth scroll
-        document.querySelectorAll('a[href^="#"]').forEach(link => {
-            link.addEventListener('click', e => {
+        document.querySelectorAll('a[href^="#"]').forEach(a => {
+            a.addEventListener('click', e => {
                 e.preventDefault();
-                const target = document.querySelector(link.getAttribute('href'));
+                const target = document.querySelector(a.getAttribute('href'));
                 if (target) {
-                    const offset = 80;
-                    const pos = target.offsetTop - offset;
-                    window.scrollTo({ top: pos, behavior: 'smooth' });
+                    window.scrollTo({
+                        top: target.offsetTop - 60,
+                        behavior: 'smooth'
+                    });
                 }
             });
         });
         
-        // FAQ toggle
+        // FAQ
         document.querySelectorAll('.faq-q').forEach(q => {
             q.addEventListener('click', () => {
                 q.parentElement.classList.toggle('open');
             });
         });
         
-        // Header shadow on scroll
-        window.addEventListener('scroll', () => {
-            const header = document.querySelector('header');
-            if (window.scrollY > 10) {
-                header.style.boxShadow = '0 2px 20px rgba(0,0,0,0.5)';
-            } else {
-                header.style.boxShadow = 'none';
-            }
-        });
-        
-        // Animation on scroll
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-        
+        // Fade in animation
         const observer = new IntersectionObserver(entries => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    entry.target.classList.add('animate');
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
                 }
             });
-        }, observerOptions);
+        });
         
-        document.querySelectorAll('.feature, .stat, .showcase-content').forEach(el => {
+        document.querySelectorAll('.feature, .tech-card, .specs-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'all 0.5s';
             observer.observe(el);
         });
     </script>
@@ -1080,31 +1094,26 @@ MAIN_PAGE = """
 """
 
 @app.route('/')
-def home():
-    return render_template_string(MAIN_PAGE)
+def index():
+    return render_template_string(EVOLUTION_SITE)
 
-@app.route('/get-download')
-def get_download():
+@app.route('/api/download')
+def download():
     return jsonify({
-        'url': '/files/evolution-setup.exe',
-        'version': '4.2.1',
-        'size': 641802240,
-        'checksum': hashlib.sha256(f"evo_{datetime.now()}".encode()).hexdigest(),
-        'mirror': 'https://mirror.evolution-s2.com/setup.exe'
+        'version': '4.3.0',
+        'url': '/static/evolution-setup.exe',
+        'size': 658874368,
+        'hash': hashlib.sha256(f'{time.time()}'.encode()).hexdigest()
     })
 
-@app.route('/api/status')
-def status():
+@app.route('/api/stats')
+def stats():
     return jsonify({
-        'servers': 'operational',
-        'version': '4.2.1',
-        'players_online': random.randint(180000, 220000),
-        'ping_avg': random.randint(8, 15)
+        'online': random.randint(150000, 200000),
+        'servers': 42,
+        'countries': 67,
+        'uptime': 99.97
     })
 
 if __name__ == '__main__':
-    print("\nEvolution Server Started")
-    print("URL: http://localhost:5000")
-    print("Support: t.me/metaspace_tg\n")
-    
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='127.0.0.1', port=5000, debug=False)
